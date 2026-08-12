@@ -60,7 +60,7 @@ async def read_root():
             <h2>🎬 Movie Recap Generator v2</h2>
             <form action="/generate" method="post">
                 <label>1. Google Gemini API Key ထည့်ပါ:</label>
-                <input type="text" name="api_key" placeholder="AIza... နဲ့စတဲ့ Gemini API Key" required>
+                <input type="text" name="api_key" placeholder="Gemini API Key (AQ.Ab8...)" required>
                 
                 <label>2. ဇာတ်လမ်းထည့်သွင်းမည့် နည်းလမ်းရွေးပါ:</label>
                 <select name="input_type" onchange="toggleInput(this.value)">
@@ -113,7 +113,9 @@ async def generate_recap(
     if not source_content:
         return "<h3>ကျေးဇူးပြု၍ ဇာတ်လမ်း သို့မဟုတ် Link ထည့်သွင်းပေးပါ။</h3><a href='/'>ပြန်သွားမည်</a>"
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    # 🔵 [ဒီနေရာကို ပြင်ဆင်ထားပါသည်] v1beta အစား v1 ပြောင်းထားပြီး Endpoint အမှန်ကို သုံးထားပါတယ်
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={api_key}"
+    
     prompt_text = f"ဒီအကြောင်းအရာ/ဇာတ်လမ်းကို စိတ်လှုပ်ရှားစရာ Movie Recap Voiceover ပုံစံဖြင့် မြန်မာဘာသာစကားဖြင့် အသေးစိတ် ပြန်လည်ပြောပြပေးပါ:\n\n{source_content}"
 
     data = {"contents": [{"parts": [{"text": prompt_text}]}]}
