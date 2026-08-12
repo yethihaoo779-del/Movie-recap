@@ -2,6 +2,6 @@ fastapi
 uvicorn
 jinja2
 python-multipart
-anthropic
-openai-whisper
-moviepy
+google-generativeai
+gtts
+
