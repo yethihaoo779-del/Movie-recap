@@ -36,26 +36,6 @@ def extract_text_from_link(url):
     except Exception as e:
         return f"Link မှ စာသားယူရာတွင် Error တက်သွားသည်: {str(e)}"
 
-def get_active_gemini_model(api_key):
-    """ Google API ထံမှ လက်ရှိ အလုပ်လုပ်နေသော Model နာမည်များကို အလိုအလျောက် ရှာပေးသည့် Function """
-    list_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
-    try:
-        req = urllib.request.Request(list_url)
-        with urllib.request.urlopen(req) as response:
-            res_data = json.loads(response.read().decode('utf-8'))
-            models = res_data.get('models', [])
-            for m in models:
-                methods = m.get('supportedGenerationMethods', [])
-                name = m.get('name', '')
-                if 'generateContent' in methods and ('gemini' in name):
-                    # returns name like 'models/gemini-2.5-flash' or 'models/gemini-1.5-flash'
-                    return name.replace('models/', '')
-    except Exception:
-        pass
-    
-    # ရှာမတွေ့ပါက အသင့်သုံး စာရင်းများထဲမှ အစဉ်လိုက် သုံးမည်
-    return "gemini-2.5-flash"
-
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
     return """
@@ -77,7 +57,7 @@ async def read_root():
     </head>
     <body>
         <div class="card">
-            <h2>🎬 Movie Recap Generator v2</h2>
+            <h2>🎬 Movie Recap Generator v3 (All Models)</h2>
             <form action="/generate" method="post">
                 <label>1. Google Gemini API Key ထည့်ပါ:</label>
                 <input type="text" name="api_key" placeholder="Gemini API Key ထည့်ပါ" required>
@@ -133,41 +113,56 @@ async def generate_recap(
     if not source_content:
         return "<h3>ကျေးဇူးပြု၍ ဇာတ်လမ်း သို့မဟုတ် Link ထည့်သွင်းပေးပါ။</h3><a href='/'>ပြန်သွားမည်</a>"
 
-    # API ထံမှ အလုပ်လုပ်နေသည့် Model နာမည်ကို အလိုအလျောက် ရယူမည်
-    selected_model = get_active_gemini_model(api_key)
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{selected_model}:generateContent?key={api_key}"
-    
     prompt_text = f"ဒီအကြောင်းအရာ/ဇာတ်လမ်းကို စိတ်လှုပ်ရှားစရာ Movie Recap Voiceover ပုံစံဖြင့် မြန်မာဘာသာစကားဖြင့် အသေးစိတ် ပြန်လည်ပြောပြပေးပါ:\n\n{source_content}"
-
     data = {"contents": [{"parts": [{"text": prompt_text}]}]}
-    
+
+    # Free သုံးလို့ရနိုင်သမျှ Gemini မော်ဒယ်များ စာရင်းအကုန်
+    candidate_models = [
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-pro",
+        "gemini-1.5-pro-latest",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-exp",
+        "gemini-pro"
+    ]
+
     recap_text = ""
-    error_msg = ""
+    used_model = ""
+    error_logs = []
 
-    try:
-        req = urllib.request.Request(
-            url, 
-            data=json.dumps(data).encode('utf-8'),
-            headers={'Content-Type': 'application/json'}
-        )
-        with urllib.request.urlopen(req) as response:
-            res_body = response.read().decode('utf-8')
-            res_json = json.loads(res_body)
-            recap_text = res_json['candidates'][0]['content']['parts'][0]['text']
-    except urllib.error.HTTPError as e:
-        error_body = e.read().decode('utf-8') if e.fp else ""
-        error_msg = f"HTTP Error {e.code}: {e.reason}<br><small style='color:#ccc;'>{error_body}</small>"
-    except Exception as e:
-        error_msg = f"Error: {str(e)}"
+    # မော်ဒယ် တစ်ခုပြီးတစ်ခု အလုပ်လုပ်သည်အထိ Loop ပတ်၍ စမ်းသပ်မည်
+    for model in candidate_models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        try:
+            req = urllib.request.Request(
+                url, 
+                data=json.dumps(data).encode('utf-8'),
+                headers={'Content-Type': 'application/json'}
+            )
+            with urllib.request.urlopen(req, timeout=15) as response:
+                res_body = response.read().decode('utf-8')
+                res_json = json.loads(res_body)
+                recap_text = res_json['candidates'][0]['content']['parts'][0]['text']
+                used_model = model
+                break # အလုပ်လုပ်တဲ့ မော်ဒယ်တွေ့တာနဲ့ ရပ်မည်
+        except urllib.error.HTTPError as e:
+            error_logs.append(f"{model}: HTTP {e.code}")
+        except Exception as e:
+            error_logs.append(f"{model}: {str(e)}")
 
-    json_safe_text = json.dumps(recap_text)
+    json_safe_text = json.dumps(recap_text if recap_text else "")
 
-    if error_msg:
-        content_html = f"<div style='color: #ff5252; font-weight: bold; margin-top: 15px;'>{error_msg}</div>"
+    if not recap_text:
+        content_html = f"""
+        <div style='color: #ff5252; font-weight: bold; margin-top: 15px;'>
+            မော်ဒယ်များ အားလုံး စမ်းသပ်သော်လည်း အဆင်မပြေပါ: <br>
+            <small style='color:#ccc;'>{ '<br>'.join(error_logs) }</small>
+        </div>
+        """
     else:
         content_html = f"""
-        <p style="color: #4caf50; font-size: 12px;">(အသုံးပြုထားသော Model: {selected_model})</p>
+        <p style="color: #4caf50; font-size: 13px; font-weight: bold;">(အဆင်ပြေစွာ သုံးသွားသော Model: {used_model})</p>
         <button class="audio-btn" onclick="speakText()">🔊 အသံဖြင့် နားထောင်မည်</button>
         <h3>📜 ထွက်ရှိလာသော Recap စာသား:</h3>
         <div class="result">{recap_text}</div>
@@ -197,9 +192,11 @@ async def generate_recap(
         <script>
             function speakText() {{
                 var text = {json_safe_text};
-                var msg = new SpeechSynthesisUtterance(text);
-                msg.lang = 'my';
-                window.speechSynthesis.speak(msg);
+                if(text) {{
+                    var msg = new SpeechSynthesisUtterance(text);
+                    msg.lang = 'my';
+                    window.speechSynthesis.speak(msg);
+                }}
             }}
         </script>
     </body>
