@@ -25,7 +25,7 @@ def extract_text_from_link(url):
                 text = " ".join([item['text'] for item in transcript_list])
                 return text if text else "YouTube စာတန်းထိုး ရှာမတွေ့ပါ။"
             except Exception:
-                return "YouTube ဗီဒီယိုမှ စာတန်းထိုး ဖတ်ယူ၍ မရပါ။ (Subtitle ပိတ်ထားခြင်း ဖြစ်နိုင်ပါတယ်)"
+                return "YouTube ဗီဒီယိုမှ စာတန်းထိုး ဖတ်ယူ၍ မရပါ။"
         
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, headers=headers, timeout=10)
@@ -35,6 +35,26 @@ def extract_text_from_link(url):
         return page_text[:4000] if page_text else "Website မှ စာသားများ ဖတ်ယူ၍ မရပါ။"
     except Exception as e:
         return f"Link မှ စာသားယူရာတွင် Error တက်သွားသည်: {str(e)}"
+
+def get_active_gemini_model(api_key):
+    """ Google API ထံမှ လက်ရှိ အလုပ်လုပ်နေသော Model နာမည်များကို အလိုအလျောက် ရှာပေးသည့် Function """
+    list_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+    try:
+        req = urllib.request.Request(list_url)
+        with urllib.request.urlopen(req) as response:
+            res_data = json.loads(response.read().decode('utf-8'))
+            models = res_data.get('models', [])
+            for m in models:
+                methods = m.get('supportedGenerationMethods', [])
+                name = m.get('name', '')
+                if 'generateContent' in methods and ('gemini' in name):
+                    # returns name like 'models/gemini-2.5-flash' or 'models/gemini-1.5-flash'
+                    return name.replace('models/', '')
+    except Exception:
+        pass
+    
+    # ရှာမတွေ့ပါက အသင့်သုံး စာရင်းများထဲမှ အစဉ်လိုက် သုံးမည်
+    return "gemini-2.5-flash"
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
@@ -113,8 +133,10 @@ async def generate_recap(
     if not source_content:
         return "<h3>ကျေးဇူးပြု၍ ဇာတ်လမ်း သို့မဟုတ် Link ထည့်သွင်းပေးပါ။</h3><a href='/'>ပြန်သွားမည်</a>"
 
-    # Gemini 2.0 Flash Model Endpoint
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    # API ထံမှ အလုပ်လုပ်နေသည့် Model နာမည်ကို အလိုအလျောက် ရယူမည်
+    selected_model = get_active_gemini_model(api_key)
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{selected_model}:generateContent?key={api_key}"
     
     prompt_text = f"ဒီအကြောင်းအရာ/ဇာတ်လမ်းကို စိတ်လှုပ်ရှားစရာ Movie Recap Voiceover ပုံစံဖြင့် မြန်မာဘာသာစကားဖြင့် အသေးစိတ် ပြန်လည်ပြောပြပေးပါ:\n\n{source_content}"
 
@@ -145,6 +167,7 @@ async def generate_recap(
         content_html = f"<div style='color: #ff5252; font-weight: bold; margin-top: 15px;'>{error_msg}</div>"
     else:
         content_html = f"""
+        <p style="color: #4caf50; font-size: 12px;">(အသုံးပြုထားသော Model: {selected_model})</p>
         <button class="audio-btn" onclick="speakText()">🔊 အသံဖြင့် နားထောင်မည်</button>
         <h3>📜 ထွက်ရှိလာသော Recap စာသား:</h3>
         <div class="result">{recap_text}</div>
