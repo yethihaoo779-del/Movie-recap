@@ -56,14 +56,16 @@ async def generate_recap(
     if not source_content:
         return "<h3>ကျေးဇူးပြု၍ ဇာတ်လမ်း ထည့်သွင်းပေးပါ။</h3><a href='/'>ပြန်သွားမည်</a>"
 
+    # စိတ်လှုပ်ရှားစရာ ရုပ်ရှင် အသံသွင်း စာသားဆန်ဆန် ရေးသားရန် Strict Prompt ပေးထားပါသည်
     prompt_text = f"""
     မင်းက ကျွမ်းကျင်တဲ့ မြန်မာ Movie Recap Voiceover ရေးသားသူဖြစ်ပါတယ်။ 
-    အောက်ပါ ဇာတ်လမ်းကို စိတ်လှုပ်ရှားစရာ ရုပ်ရှင်အသံသွင်း စာသားအဖြစ် ရေးပေးပါ။
+    အောက်ပါ ဇာတ်လမ်းကို ပရိသတ်စိတ်ဝင်စားစေမယ့်၊ အနိမ့်အမြင့်နဲ့ စိတ်လှုပ်ရှားစရာ ရုပ်ရှင်အသံသွင်း စကားပြောဟန်ဖြင့် ရေးပေးပါ။
 
     [အရေးကြီးသော စည်းမျဉ်းများ]
     ၁။ စာသားအားလုံးကို **မြန်မာဘာသာစကား (Myanmar Language)** ဖြင့်သာ မဖြစ်မနေ ရေးရမည်။
-    ၂။ အင်္ဂလိပ်စာလုံး လုံးဝ မသုံးရပါ။ မြန်မာလိုပဲ သန့်သန့်ရေးပေးပါ။
-    ၃။ အသံဖတ်ရန် အထောက်အကူပြုအောင် * သို့မဟုတ် ** စသည့် Format သင်္ကေတများ မသုံးပါနှင့်။
+    ၂။ အင်္ဂလိပ်စာလုံး လုံးဝ မသုံးရပါ။
+    ၃။ [စိတ်လှုပ်ရှားဖွယ် အခန်း]၊ [နိဒါန်း] စသည့် စာပိုဒ် ခေါင်းစဉ်သင်္ကေတများ သို့မဟုတ် ** သင်္ကေတများ ထည့်ပေးပါ။
+    ၄။ ရုပ်ရှင်ဇာတ်လမ်းပြောသလို ဆွဲဆောင်မှုရှိသော စကားလုံးများ ခံစားချက်ပါပါ သုံးနှုန်းပါ။
 
     ဇာတ်လမ်းအကြောင်းအရာ:
     {source_content}
@@ -99,8 +101,8 @@ async def generate_recap(
     audio_html = ""
     if recap_text:
         try:
-            # တင်းကျပ်သော Format သင်္ကေတများ ရှင်းလင်း၍ MP3 အသံဖိုင် ထုတ်လုပ်ခြင်း
-            clean_text_for_audio = recap_text.replace('*', '').replace('#', '')
+            # အသံဖတ်ရာတွင် အဆင်ပြေစေရန် သင်္ကေတများကို ရှင်းလင်းခြင်း
+            clean_text_for_audio = recap_text.replace('*', '').replace('#', '').replace('[', '').replace(']', '')
             tts = gTTS(text=clean_text_for_audio, lang='my')
             fp = BytesIO()
             tts.write_to_fp(fp)
@@ -109,7 +111,7 @@ async def generate_recap(
             audio_html = f"""
             <div style="margin: 15px 0;">
                 <p style="color: #00e676; font-weight: bold;">🔊 မြန်မာအသံ ထွက်ရှိပါပြီ:</p>
-                <audio controls autoplay style="width: 100%;">
+                <audio controls style="width: 100%;">
                     <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
                     သင့် Browser က Audio Player ကို မထောက်ပံ့ပါ။
                 </audio>
