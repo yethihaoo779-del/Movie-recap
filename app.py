@@ -42,8 +42,8 @@ async def generate_recap(story: str = Form(...)):
         return "<h3 style='color:white; text-align:center;'>API Key မရှိသေးပါ။ Render Environment မှာ GEMINI_API_KEY ထည့်သွင်းပေးပါ။</h3>"
 
     try:
-        # Gemini API URL ပြင်ဆင်ထားသည့် လမ်းကြောင်း
-        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+        # v1beta endpoint သို့ ပြင်ဆင်ထားသော လမ်းကြောင်း
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={GEMINI_API_KEY}"
         
         prompt_text = f"ဒီရုပ်ရှင်ဇာတ်လမ်းကို စိတ်လှုပ်ရှားစရာ Movie Recap Voiceover ပုံစံဖြင့် မြန်မာဘာသာစကားဖြင့် အသေးစိတ် ပြန်လည်ပြောပြပေးပါ:\n\n{story}"
         
