@@ -1,13 +1,11 @@
 import os
 import re
-import json
-import urllib.request
-import urllib.error
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse
 import requests
 from bs4 import BeautifulSoup
 from youtube_transcript_api import YouTubeTranscriptApi
+import google.generativeai as genai
 
 app = FastAPI()
 
@@ -57,7 +55,7 @@ async def read_root():
     </head>
     <body>
         <div class="card">
-            <h2>🎬 Movie Recap Generator v3 (All Models)</h2>
+            <h2>🎬 Movie Recap Generator (Official SDK)</h2>
             <form action="/generate" method="post">
                 <label>1. Google Gemini API Key ထည့်ပါ:</label>
                 <input type="text" name="api_key" placeholder="Gemini API Key ထည့်ပါ" required>
@@ -114,50 +112,41 @@ async def generate_recap(
         return "<h3>ကျေးဇူးပြု၍ ဇာတ်လမ်း သို့မဟုတ် Link ထည့်သွင်းပေးပါ။</h3><a href='/'>ပြန်သွားမည်</a>"
 
     prompt_text = f"ဒီအကြောင်းအရာ/ဇာတ်လမ်းကို စိတ်လှုပ်ရှားစရာ Movie Recap Voiceover ပုံစံဖြင့် မြန်မာဘာသာစကားဖြင့် အသေးစိတ် ပြန်လည်ပြောပြပေးပါ:\n\n{source_content}"
-    data = {"contents": [{"parts": [{"text": prompt_text}]}]}
-
-    # Free သုံးလို့ရနိုင်သမျှ Gemini မော်ဒယ်များ စာရင်းအကုန်
-    candidate_models = [
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-pro",
-        "gemini-1.5-pro-latest",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-exp",
-        "gemini-pro"
-    ]
 
     recap_text = ""
     used_model = ""
     error_logs = []
 
-    # မော်ဒယ် တစ်ခုပြီးတစ်ခု အလုပ်လုပ်သည်အထိ Loop ပတ်၍ စမ်းသပ်မည်
-    for model in candidate_models:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-        try:
-            req = urllib.request.Request(
-                url, 
-                data=json.dumps(data).encode('utf-8'),
-                headers={'Content-Type': 'application/json'}
-            )
-            with urllib.request.urlopen(req, timeout=15) as response:
-                res_body = response.read().decode('utf-8')
-                res_json = json.loads(res_body)
-                recap_text = res_json['candidates'][0]['content']['parts'][0]['text']
-                used_model = model
-                break # အလုပ်လုပ်တဲ့ မော်ဒယ်တွေ့တာနဲ့ ရပ်မည်
-        except urllib.error.HTTPError as e:
-            error_logs.append(f"{model}: HTTP {e.code}")
-        except Exception as e:
-            error_logs.append(f"{model}: {str(e)}")
+    try:
+        # Google Official SDK ကို သုံးပြီး Configure လုပ်မည်
+        genai.configure(api_key=api_key)
+        
+        # သင့် API Key ဖြင့် အမှန်တကယ် သုံးလို့ရသော Model များကို Google ထံမှ တိုက်ရိုက် တောင်းယူမည်
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        # သုံးခွင့်ရှိသော မော်ဒယ်များထဲမှ တစ်ခုချင်းစီ စမ်းမည်
+        for model_name in available_models:
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt_text)
+                if response.text:
+                    recap_text = response.text
+                    used_model = model_name
+                    break
+            except Exception as inner_e:
+                error_logs.append(f"{model_name}: {str(inner_e)}")
 
+    except Exception as e:
+        error_logs.append(f"SDK Config Error: {str(e)}")
+
+    import json
     json_safe_text = json.dumps(recap_text if recap_text else "")
 
     if not recap_text:
         content_html = f"""
         <div style='color: #ff5252; font-weight: bold; margin-top: 15px;'>
-            မော်ဒယ်များ အားလုံး စမ်းသပ်သော်လည်း အဆင်မပြေပါ: <br>
-            <small style='color:#ccc;'>{ '<br>'.join(error_logs) }</small>
+            API Key စစ်ဆေးပါ သို့မဟုတ် မော်ဒယ်များ ခေါ်ယူ၍ မရပါ: <br>
+            <small style='color:#ccc;'>{ '<br>'.join(error_logs) if error_logs else 'API Key မှားယွင်းနေခြင်း ဖြစ်နိုင်ပါသည်။' }</small>
         </div>
         """
     else:
