@@ -1,38 +1,9 @@
 import os
-import re
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse
-import requests
-from bs4 import BeautifulSoup
-from youtube_transcript_api import YouTubeTranscriptApi
 import google.generativeai as genai
 
 app = FastAPI()
-
-def get_youtube_id(url):
-    pattern = r'(?:v=|\/live\/|\/embed\/|\/shorts\/|\/v\/|youtu\.be\/|\/e\/)([^"&?\/\s]{11})'
-    match = re.search(pattern, url)
-    return match.group(1) if match else None
-
-def extract_text_from_link(url):
-    try:
-        yt_id = get_youtube_id(url)
-        if yt_id:
-            try:
-                transcript_list = YouTubeTranscriptApi.get_transcript(yt_id, languages=['my', 'en'])
-                text = " ".join([item['text'] for item in transcript_list])
-                return text if text else "YouTube စာတန်းထိုး ရှာမတွေ့ပါ။"
-            except Exception:
-                return "YouTube ဗီဒီယိုမှ စာတန်းထိုး ဖတ်ယူ၍ မရပါ။"
-        
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        paragraphs = soup.find_all('p')
-        page_text = " ".join([p.get_text() for p in paragraphs])
-        return page_text[:4000] if page_text else "Website မှ စာသားများ ဖတ်ယူ၍ မရပါ။"
-    except Exception as e:
-        return f"Link မှ စာသားယူရာတွင် Error တက်သွားသည်: {str(e)}"
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
@@ -46,8 +17,8 @@ async def read_root():
         <style>
             body { font-family: sans-serif; text-align: center; padding: 20px; background: #121212; color: white; margin: 0; }
             .card { max-width: 600px; margin: auto; background: #1e1e1e; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-            textarea, input, select { width: 100%; margin: 8px 0; border-radius: 5px; padding: 10px; background: #2b2b2b; color: white; border: 1px solid #444; font-size: 14px; box-sizing: border-box; }
-            textarea { height: 100px; }
+            textarea, input { width: 100%; margin: 8px 0; border-radius: 5px; padding: 10px; background: #2b2b2b; color: white; border: 1px solid #444; font-size: 14px; box-sizing: border-box; }
+            textarea { height: 120px; }
             button { background: #e50914; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; }
             button:hover { background: #b80710; }
             label { display: block; text-align: left; margin-top: 10px; color: #bbb; font-size: 13px; }
@@ -55,40 +26,17 @@ async def read_root():
     </head>
     <body>
         <div class="card">
-            <h2>🎬 Movie Recap Generator (Official SDK)</h2>
+            <h2>🎬 Movie Recap Generator</h2>
             <form action="/generate" method="post">
                 <label>1. Google Gemini API Key ထည့်ပါ:</label>
                 <input type="text" name="api_key" placeholder="Gemini API Key ထည့်ပါ" required>
                 
-                <label>2. ဇာတ်လမ်းထည့်သွင်းမည့် နည်းလမ်းရွေးပါ:</label>
-                <select name="input_type" onchange="toggleInput(this.value)">
-                    <option value="text">ဇာတ်လမ်း စာသားတိုက်ရိုက်ရိုက်ထည့်မည်</option>
-                    <option value="link">Website / YouTube Link ထည့်မည်</option>
-                </select>
-
-                <div id="textGroup">
-                    <textarea name="story" placeholder="ဇာတ်လမ်းအကျဉ်းချုပ် ရိုက်ထည့်ပါ..."></textarea>
-                </div>
-
-                <div id="linkGroup" style="display:none;">
-                    <input type="url" name="link_url" placeholder="https://youtube.com/watch?... သို့မဟုတ် Website Link">
-                </div>
+                <label>2. ဇာတ်လမ်း အကြောင်းအရာ ရိုက်ထည့်ပါ:</label>
+                <textarea name="story" placeholder="ဇာတ်လမ်းအကျဉ်းချုပ် ရိုက်ထည့်ပါ..." required></textarea>
 
                 <button type="submit">Recap ဖန်တီးမည်</button>
             </form>
         </div>
-
-        <script>
-            function toggleInput(val) {
-                if(val === 'text') {
-                    document.getElementById('textGroup').style.display = 'block';
-                    document.getElementById('linkGroup').style.display = 'none';
-                } else {
-                    document.getElementById('textGroup').style.display = 'none';
-                    document.getElementById('linkGroup').style.display = 'block';
-                }
-            }
-        </script>
     </body>
     </html>
     """
@@ -96,20 +44,13 @@ async def read_root():
 @app.post("/generate", response_class=HTMLResponse)
 async def generate_recap(
     api_key: str = Form(...),
-    input_type: str = Form(...),
-    story: str = Form(""),
-    link_url: str = Form("")
+    story: str = Form("")
 ):
     api_key = api_key.strip()
-    source_content = ""
-
-    if input_type == "link" and link_url:
-        source_content = extract_text_from_link(link_url.strip())
-    else:
-        source_content = story.strip()
+    source_content = story.strip()
 
     if not source_content:
-        return "<h3>ကျေးဇူးပြု၍ ဇာတ်လမ်း သို့မဟုတ် Link ထည့်သွင်းပေးပါ။</h3><a href='/'>ပြန်သွားမည်</a>"
+        return "<h3>ကျေးဇူးပြု၍ ဇာတ်လမ်း ထည့်သွင်းပေးပါ။</h3><a href='/'>ပြန်သွားမည်</a>"
 
     prompt_text = f"ဒီအကြောင်းအရာ/ဇာတ်လမ်းကို စိတ်လှုပ်ရှားစရာ Movie Recap Voiceover ပုံစံဖြင့် မြန်မာဘာသာစကားဖြင့် အသေးစိတ် ပြန်လည်ပြောပြပေးပါ:\n\n{source_content}"
 
@@ -118,13 +59,11 @@ async def generate_recap(
     error_logs = []
 
     try:
-        # Google Official SDK ကို သုံးပြီး Configure လုပ်မည်
         genai.configure(api_key=api_key)
         
-        # သင့် API Key ဖြင့် အမှန်တကယ် သုံးလို့ရသော Model များကို Google ထံမှ တိုက်ရိုက် တောင်းယူမည်
+        # Google API မှ သင့် Key ဖြင့် သုံးခွင့်ရသော Model စာရင်း တောင်းမည်
         available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         
-        # သုံးခွင့်ရှိသော မော်ဒယ်များထဲမှ တစ်ခုချင်းစီ စမ်းမည်
         for model_name in available_models:
             try:
                 model = genai.GenerativeModel(model_name)
@@ -137,7 +76,7 @@ async def generate_recap(
                 error_logs.append(f"{model_name}: {str(inner_e)}")
 
     except Exception as e:
-        error_logs.append(f"SDK Config Error: {str(e)}")
+        error_logs.append(f"SDK Error: {str(e)}")
 
     import json
     json_safe_text = json.dumps(recap_text if recap_text else "")
