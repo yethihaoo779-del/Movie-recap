@@ -1,8 +1,11 @@
 import os
 import json
+import base64
+from io import BytesIO
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse
 import google.generativeai as genai
+from gtts import gTTS
 
 app = FastAPI()
 
@@ -60,6 +63,7 @@ async def generate_recap(
     [အရေးကြီးသော စည်းမျဉ်းများ]
     ၁။ စာသားအားလုံးကို **မြန်မာဘာသာစကား (Myanmar Language)** ဖြင့်သာ မဖြစ်မနေ ရေးရမည်။
     ၂။ အင်္ဂလိပ်စာလုံး လုံးဝ မသုံးရပါ။ မြန်မာလိုပဲ သန့်သန့်ရေးပေးပါ။
+    ၃။ အသံဖတ်ရန် အထောက်အကူပြုအောင် * သို့မဟုတ် ** စသည့် Format သင်္ကေတများ မသုံးပါနှင့်။
 
     ဇာတ်လမ်းအကြောင်းအရာ:
     {source_content}
@@ -72,15 +76,12 @@ async def generate_recap(
     try:
         genai.configure(api_key=api_key)
         
-        # API Key ဖြင့် အသုံးပြုနိုင်သော Model များကို ရှာဖွေခြင်း
         available_models = []
         for m in genai.list_models():
             if 'generateContent' in m.supported_generation_methods:
-                # Gemma မော်ဒယ်များကို ပယ်ထုတ်ပြီး Gemini သီးသန့်ရွေးမည်
                 if 'gemma' not in m.name.lower():
                     available_models.append(m.name)
         
-        # Gemini မော်ဒယ်များကို အစဉ်လိုက် စမ်းသပ်မည်
         for model_name in available_models:
             try:
                 model = genai.GenerativeModel(model_name)
@@ -95,7 +96,27 @@ async def generate_recap(
     except Exception as e:
         error_logs.append(f"SDK Error: {str(e)}")
 
-    json_safe_text = json.dumps(recap_text if recap_text else "")
+    audio_html = ""
+    if recap_text:
+        try:
+            # တင်းကျပ်သော Format သင်္ကေတများ ရှင်းလင်း၍ MP3 အသံဖိုင် ထုတ်လုပ်ခြင်း
+            clean_text_for_audio = recap_text.replace('*', '').replace('#', '')
+            tts = gTTS(text=clean_text_for_audio, lang='my')
+            fp = BytesIO()
+            tts.write_to_fp(fp)
+            fp.seek(0)
+            audio_base64 = base64.b64encode(fp.read()).decode('utf-8')
+            audio_html = f"""
+            <div style="margin: 15px 0;">
+                <p style="color: #00e676; font-weight: bold;">🔊 မြန်မာအသံ ထွက်ရှိပါပြီ:</p>
+                <audio controls autoplay style="width: 100%;">
+                    <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
+                    သင့် Browser က Audio Player ကို မထောက်ပံ့ပါ။
+                </audio>
+            </div>
+            """
+        except Exception as audio_err:
+            audio_html = f"<p style='color: #ff9800;'>အသံဖိုင် ပြောင်းလဲရာတွင် အမှားအယွင်းရှိပါသည်: {str(audio_err)}</p>"
 
     if not recap_text:
         content_html = f"""
@@ -107,7 +128,7 @@ async def generate_recap(
     else:
         content_html = f"""
         <p style="color: #4caf50; font-size: 13px; font-weight: bold;">(အဆင်ပြေစွာ သုံးသွားသော Model: {used_model})</p>
-        <button class="audio-btn" onclick="speakText()">🔊 အသံဖြင့် နားထောင်မည်</button>
+        {audio_html}
         <h3>📜 ထွက်ရှိလာသော Recap စာသား:</h3>
         <div class="result">{recap_text}</div>
         """
@@ -123,7 +144,6 @@ async def generate_recap(
             body {{ font-family: sans-serif; text-align: center; padding: 20px; background: #121212; color: white; margin: 0; }}
             .card {{ max-width: 600px; margin: auto; background: #1e1e1e; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }}
             .result {{ text-align: left; background: #2a2a2a; padding: 15px; border-radius: 5px; line-height: 1.8; margin-top: 15px; font-size: 15px; color: #fff; white-space: pre-line; }}
-            .audio-btn {{ background: #28a745; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 5px; cursor: pointer; margin-top: 10px; font-weight: bold; width: 100%; }}
             a {{ color: #e50914; text-decoration: none; display: inline-block; margin-top: 20px; font-weight: bold; font-size: 16px; }}
         </style>
     </head>
@@ -133,21 +153,6 @@ async def generate_recap(
             {content_html}
             <a href="/">⬅ နောက်တစ်ခု ပြန်လုပ်မည်</a>
         </div>
-        <script>
-            function speakText() {{
-                var text = {json_safe_text};
-                if (!text) return;
-
-                if ('speechSynthesis' in window) {{
-                    window.speechSynthesis.cancel();
-                    var msg = new SpeechSynthesisUtterance(text);
-                    msg.rate = 0.9;
-                    window.speechSynthesis.speak(msg);
-                }} else {{
-                    alert("သင့် Browser မှ အသံထွက်စနစ်ကို ထောက်ပံ့မှုမရှိပါ။");
-                }}
-            }}
-        </script>
     </body>
     </html>
     """
