@@ -113,7 +113,6 @@ async def generate_recap(
     if not source_content:
         return "<h3>ကျေးဇူးပြု၍ ဇာတ်လမ်း သို့မဟုတ် Link ထည့်သွင်းပေးပါ။</h3><a href='/'>ပြန်သွားမည်</a>"
 
-    # API Endpoint Standard (gemini-1.5-flash / v1beta)
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     
     prompt_text = f"ဒီအကြောင်းအရာ/ဇာတ်လမ်းကို စိတ်လှုပ်ရှားစရာ Movie Recap Voiceover ပုံစံဖြင့် မြန်မာဘာသာစကားဖြင့် အသေးစိတ် ပြန်လည်ပြောပြပေးပါ:\n\n{source_content}"
