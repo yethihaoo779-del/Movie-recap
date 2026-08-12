@@ -53,14 +53,13 @@ async def generate_recap(
     if not source_content:
         return "<h3>ကျေးဇူးပြု၍ ဇာတ်လမ်း ထည့်သွင်းပေးပါ။</h3><a href='/'>ပြန်သွားမည်</a>"
 
-    # မြန်မာလိုပဲ သေချာ ထွက်အောင် Strict Prompt ပေးထားပါသည်
     prompt_text = f"""
-    မင်းက ကျွမ်းကျင်တဲ့ Movie Recap Voiceover ရေးသားသူတစ်ယောက်ပါ။
-    အောက်ပါ ဇာတ်လမ်းကို စိတ်လှုပ်ရှားဖွယ်ရာ Movie Recap စာသားအဖြစ် ပြန်လည်ရေးသားပေးပါ။
+    မင်းက ကျွမ်းကျင်တဲ့ မြန်မာ Movie Recap Voiceover ရေးသားသူဖြစ်ပါတယ်။ 
+    အောက်ပါ ဇာတ်လမ်းကို စိတ်လှုပ်ရှားစရာ ရုပ်ရှင်အသံသွင်း စာသားအဖြစ် ရေးပေးပါ။
 
-    [စည်းမျဉ်းများ]
-    ၁။ စာသားအားလုံးကို **မဖြစ်မနေ မြန်မာဘာသာစကား (Myanmar Language)** ဖြင့်သာ ရေးရမည်။ အင်္ဂလိပ်စာလုံး လုံးဝ မသုံးရပါ။
-    ၂။ ရုပ်ရှင် အသံသွင်း (Voiceover) ဖတ်ရလွယ်ကူအောင် စာပိုဒ်လိုက် စိတ်လှုပ်ရှားဖွယ် ရေးပေးပါ။
+    [အရေးကြီးသော စည်းမျဉ်းများ]
+    ၁။ စာသားအားလုံးကို **မြန်မာဘာသာစကား (Myanmar Font)** ဖြင့်သာ မဖြစ်မနေ ရေးရမည်။
+    ၂။ အင်္ဂလိပ်စာလုံး သို့မဟုတ် အင်္ဂလိပ်လို ပြန်ဘာသာပြန်ခြင်း လုံးဝ မပြုလုပ်ရပါ။
 
     ဇာတ်လမ်းအကြောင်းအရာ:
     {source_content}
@@ -72,9 +71,16 @@ async def generate_recap(
 
     try:
         genai.configure(api_key=api_key)
-        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         
-        for model_name in available_models:
+        # Gemini မော်ဒယ် စစ်စစ်များကိုသာ သီးသန့် ရွေးချယ်စမ်းသပ်မည် (Gemma မော်ဒယ်များကို ပိတ်ထားသည်)
+        target_models = [
+            'models/gemini-1.5-flash',
+            'models/gemini-1.5-pro',
+            'models/gemini-2.0-flash',
+            'models/gemini-1.0-pro'
+        ]
+        
+        for model_name in target_models:
             try:
                 model = genai.GenerativeModel(model_name)
                 response = model.generate_content(prompt_text)
@@ -100,7 +106,7 @@ async def generate_recap(
     else:
         content_html = f"""
         <p style="color: #4caf50; font-size: 13px; font-weight: bold;">(အဆင်ပြေစွာ သုံးသွားသော Model: {used_model})</p>
-        <button class="audio-btn" onclick="speakText()">🔊 အသံဖြင့် နားထောင်မည် (Play Audio)</button>
+        <button class="audio-btn" onclick="speakText()">🔊 အသံဖြင့် နားထောင်မည်</button>
         <h3>📜 ထွက်ရှိလာသော Recap စာသား:</h3>
         <div class="result">{recap_text}</div>
         """
@@ -117,7 +123,6 @@ async def generate_recap(
             .card {{ max-width: 600px; margin: auto; background: #1e1e1e; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }}
             .result {{ text-align: left; background: #2a2a2a; padding: 15px; border-radius: 5px; line-height: 1.8; margin-top: 15px; font-size: 15px; color: #fff; white-space: pre-line; }}
             .audio-btn {{ background: #28a745; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 5px; cursor: pointer; margin-top: 10px; font-weight: bold; width: 100%; }}
-            .audio-btn:active {{ background: #1e7e34; }}
             a {{ color: #e50914; text-decoration: none; display: inline-block; margin-top: 20px; font-weight: bold; font-size: 16px; }}
         </style>
     </head>
@@ -133,25 +138,13 @@ async def generate_recap(
                 if (!text) return;
 
                 if ('speechSynthesis' in window) {{
-                    window.speechSynthesis.cancel(); // အရင်အသံရပ်မည်
+                    window.speechSynthesis.cancel();
                     var msg = new SpeechSynthesisUtterance(text);
-                    
-                    // ဖုန်းအသံစနစ်စစ်ဆေးခြင်း
-                    var voices = window.speechSynthesis.getVoices();
-                    var myVoice = voices.find(v => v.lang.includes('my') || v.lang.includes('en'));
-                    if(myVoice) msg.voice = myVoice;
-
-                    msg.rate = 0.95; // အသံနှုန်း
+                    msg.rate = 0.9;
                     window.speechSynthesis.speak(msg);
                 }} else {{
                     alert("သင့် Browser မှ အသံထွက်စနစ်ကို ထောက်ပံ့မှုမရှိပါ။");
                 }}
-            }}
-            // Chrome Mobile အတွက် Voice များ ကြို Load လုပ်ပေးခြင်း
-            if ('speechSynthesis' in window) {{
-                window.speechSynthesis.onvoiceschanged = function() {{
-                    window.speechSynthesis.getVoices();
-                }};
             }}
         </script>
     </body>
