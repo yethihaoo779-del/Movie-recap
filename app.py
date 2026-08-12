@@ -58,8 +58,8 @@ async def generate_recap(
     အောက်ပါ ဇာတ်လမ်းကို စိတ်လှုပ်ရှားစရာ ရုပ်ရှင်အသံသွင်း စာသားအဖြစ် ရေးပေးပါ။
 
     [အရေးကြီးသော စည်းမျဉ်းများ]
-    ၁။ စာသားအားလုံးကို **မြန်မာဘာသာစကား (Myanmar Font)** ဖြင့်သာ မဖြစ်မနေ ရေးရမည်။
-    ၂။ အင်္ဂလိပ်စာလုံး သို့မဟုတ် အင်္ဂလိပ်လို ပြန်ဘာသာပြန်ခြင်း လုံးဝ မပြုလုပ်ရပါ။
+    ၁။ စာသားအားလုံးကို **မြန်မာဘာသာစကား (Myanmar Language)** ဖြင့်သာ မဖြစ်မနေ ရေးရမည်။
+    ၂။ အင်္ဂလိပ်စာလုံး လုံးဝ မသုံးရပါ။ မြန်မာလိုပဲ သန့်သန့်ရေးပေးပါ။
 
     ဇာတ်လမ်းအကြောင်းအရာ:
     {source_content}
@@ -72,15 +72,16 @@ async def generate_recap(
     try:
         genai.configure(api_key=api_key)
         
-        # Gemini မော်ဒယ် စစ်စစ်များကိုသာ သီးသန့် ရွေးချယ်စမ်းသပ်မည် (Gemma မော်ဒယ်များကို ပိတ်ထားသည်)
-        target_models = [
-            'models/gemini-1.5-flash',
-            'models/gemini-1.5-pro',
-            'models/gemini-2.0-flash',
-            'models/gemini-1.0-pro'
-        ]
+        # API Key ဖြင့် အသုံးပြုနိုင်သော Model များကို ရှာဖွေခြင်း
+        available_models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                # Gemma မော်ဒယ်များကို ပယ်ထုတ်ပြီး Gemini သီးသန့်ရွေးမည်
+                if 'gemma' not in m.name.lower():
+                    available_models.append(m.name)
         
-        for model_name in target_models:
+        # Gemini မော်ဒယ်များကို အစဉ်လိုက် စမ်းသပ်မည်
+        for model_name in available_models:
             try:
                 model = genai.GenerativeModel(model_name)
                 response = model.generate_content(prompt_text)
@@ -100,7 +101,7 @@ async def generate_recap(
         content_html = f"""
         <div style='color: #ff5252; font-weight: bold; margin-top: 15px;'>
             API Key စစ်ဆေးပါ သို့မဟုတ် မော်ဒယ်များ ခေါ်ယူ၍ မရပါ: <br>
-            <small style='color:#ccc;'>{ '<br>'.join(error_logs) if error_logs else 'API Key မှားယွင်းနေခြင်း ဖြစ်နိုင်ပါသည်။' }</small>
+            <small style='color:#ccc;'>{ '<br>'.join(error_logs) if error_logs else 'API Key မှားယွင်းနေခြင်း သို့မဟုတ် မော်ဒယ်မရှိခြင်း ဖြစ်နိုင်ပါသည်။' }</small>
         </div>
         """
     else:
