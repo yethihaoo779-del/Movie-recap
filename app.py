@@ -1,4 +1,5 @@
 import os
+import json
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse
 import google.generativeai as genai
@@ -60,8 +61,6 @@ async def generate_recap(
 
     try:
         genai.configure(api_key=api_key)
-        
-        # Google API မှ သင့် Key ဖြင့် သုံးခွင့်ရသော Model စာရင်း တောင်းမည်
         available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         
         for model_name in available_models:
@@ -78,7 +77,6 @@ async def generate_recap(
     except Exception as e:
         error_logs.append(f"SDK Error: {str(e)}")
 
-    import json
     json_safe_text = json.dumps(recap_text if recap_text else "")
 
     if not recap_text:
